@@ -21,7 +21,6 @@ namespace SampleAPI.Tests.Controllers
         {
             _mockOrderRepository = new Mock<IOrderRepository>();
             _controller = new OrdersController(_mockOrderRepository.Object);
-
         }
 
         [Fact]

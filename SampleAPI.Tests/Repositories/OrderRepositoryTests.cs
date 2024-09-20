@@ -11,84 +11,90 @@ namespace SampleAPI.Tests.Repositories
     public class OrderRepositoryTests
     {
         // TODO: Write repository unit tests
-        private readonly Mock<SampleApiDbContext> _mockContext;
-        private readonly OrderRepository _repository;
+        private readonly SampleApiDbContext _mockContext;
+        private readonly IOrderRepository _repository;
 
         public OrderRepositoryTests()
         {
             // Create a mock DbContext
-            _mockContext = new Mock<SampleApiDbContext>(new DbContextOptions<SampleApiDbContext>());
-            
+            _mockContext = MockSampleApiDbContextFactory.GenerateMockContext();             
 
             // Initialize the repository with the mocked context
-            _repository = new OrderRepository(MockSampleApiDbContextFactory.GenerateMockContext());
+            _repository = new OrderRepository(_mockContext);
+
+            SeedDatabase();
+        }
+
+        private void SeedDatabase()
+        {
+            _mockContext.Orders.AddRange(
+                    new Order { ID = 1, EntryDate = DateTime.Now.AddDays(-1), IsDeleted = false, Name = "Test1", Description = "Test 1" },
+                    new Order { ID = 2, EntryDate = DateTime.Now.AddDays(-5), IsDeleted = false, Name = "Test2", Description = "Test 2" },
+                    new Order { ID = 3, EntryDate = DateTime.Now.AddDays(-10), IsDeleted = false, Name = "Test3", Description = "Test 3" } 
+                );
+            _mockContext.SaveChangesAsync();
+            
         }
 
         [Fact]
         public async Task AddNewOrder_Should_Add_Order_To_Database()
         {
             // Arrange
-            var newOrder = new Order { ID = 1, EntryDate = DateTime.Now, IsDeleted = false, Name="Test1", Description="Test 1" };
-
-            _mockContext.Setup(x => x.Orders.AddAsync(newOrder, default)).ReturnsAsync((Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<Order>)null);
+            var newOrder = new Order { ID = 4, EntryDate = DateTime.Now, IsDeleted = false, Name="Test1", Description="Test 1" };
 
             // Act
             var result = await _repository.AddNewOrder(newOrder);
 
             // Assert
-            _mockContext.Verify(x => x.Orders.AddAsync(newOrder, default), Times.Once);
-            _mockContext.Verify(x => x.SaveChangesAsync(default), Times.Once);
+            var addedOrder = await _mockContext.Orders.FindAsync(4);
+            Assert.NotNull(addedOrder);
+            Assert.Equal(newOrder.ID, addedOrder.ID);
+            Assert.Equal(newOrder.EntryDate, addedOrder.EntryDate);
         }
 
         [Fact]
         public async Task DeleteOrder_Should_Set_IsDeleted_To_True()
         {
-            // Arrange
-            var existingOrder = new Order { ID = 1, IsDeleted = false };
-
-            _mockContext.Setup(x => x.Orders.FindAsync(1))
-                .ReturnsAsync(existingOrder);
-
+            int orderID = 3;
             // Act
-            await _repository.DeleteOrder(1);
+            await _repository.DeleteOrder(orderID);
 
             // Assert
-            Assert.True(existingOrder.IsDeleted);
-            _mockContext.Verify(x => x.SaveChangesAsync(default), Times.Once);
+            Assert.True(_mockContext.Orders.FindAsync(orderID).Result.IsDeleted);            
         }
 
         [Fact]
         public async Task FindOrder_Should_Return_Order_If_Exists()
         {
-            // Arrange
-            var existingOrder = new Order { ID = 1 };
-            _mockContext.Setup(x => x.Orders.FindAsync(1))
-                .ReturnsAsync(existingOrder);
-
+            int orderID = 1;
             // Act
-            var result = await _repository.FindOrder(1);
+            var result = await _repository.FindOrder(orderID);
 
             // Assert
-            Assert.Equal(existingOrder, result);
+            Assert.Equal(_mockContext.Orders.FindAsync(orderID).Result, result);
         }
 
         [Fact]
         public async Task GetRecentOrders_Should_Return_List_Of_Orders()
-        {
-            // Arrange
-            var orders = new List<Order>
-            {
-                new Order { ID = 1, EntryDate = DateTime.Now.AddDays(-2), IsDeleted = false },
-                new Order { ID = 2, EntryDate = DateTime.Now.AddDays(-1), IsDeleted = false }
-            };
-
-            _mockContext.Setup(x => x.Orders).Returns(MockSampleApiDbContextFactory.GenerateMockContext().Orders);
-
+        {            
             // Act
             var result = await _repository.GetRecentOrders();
 
             // Assert
-            Assert.Equal(0, result.Count);
+            Assert.Equal(3, result.Count);
+            Assert.True(result.All(o => o.IsDeleted == false));
+        }
+
+        [Fact]
+        public async Task GetOrdersForLastNDays_Should_Return_List_Of_Orders()
+        {
+            int dayCount = 5;
+
+            // Act
+            var result = await _repository.GetOrdersForLastNDays(5);
+
+            // Assert
+            Assert.Equal(1, result.Count);
             Assert.True(result.All(o => o.IsDeleted == false));
         }
     }

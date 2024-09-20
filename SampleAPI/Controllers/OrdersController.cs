@@ -61,10 +61,11 @@ namespace SampleAPI.Controllers
         [HttpGet("Filter/{days}")]
         public async Task<ActionResult<List<Order>>> GetFilterOrder(int days)
         {
+            if (days <= 0)
+                return BadRequest();
+
             var orders = await _orderRepository.GetOrdersForLastNDays(days);
             return orders;
         }
-
-
     }
 }
